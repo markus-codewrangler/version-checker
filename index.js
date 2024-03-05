@@ -1,6 +1,7 @@
 import axios from "axios";
 import fs from "fs";
 import path from "path";
+import semver from "semver";
 import { packages } from "./packages.js";
 
 // Function to fetch the latest version and release date of a package
@@ -16,7 +17,10 @@ export async function fetchPackageInfo(packageName, installedVersion) {
   // Fetch the release date of the installed version directly
   const installedReleaseDate = response.data["time"][installedVersionStripped];
 
-  return { latestVersion, latestReleaseDate, installedReleaseDate };
+  // Determine the type of update (major, minor, patch)
+  const updateType = semver.diff(installedVersionStripped, latestVersion);
+
+  return { latestVersion, latestReleaseDate, installedReleaseDate, updateType };
 }
 
 // Function to determine if an update is needed
@@ -29,8 +33,12 @@ async function processDependencies(deps, depType) {
   let packageInfo = [];
   for (const currentPackage in deps) {
     const installedVersion = deps[currentPackage];
-    const { latestVersion, latestReleaseDate, installedReleaseDate } =
-      await fetchPackageInfo(currentPackage, installedVersion);
+    const {
+      latestVersion,
+      latestReleaseDate,
+      installedReleaseDate,
+      updateType,
+    } = await fetchPackageInfo(currentPackage, installedVersion);
     const updateNeeded = needsUpdate(
       installedVersion.replace(/^\D+/, ""),
       latestVersion,
@@ -45,6 +53,7 @@ async function processDependencies(deps, depType) {
       LatestVersion: latestVersion,
       LatestReleaseDate: new Date(latestReleaseDate).toISOString().slice(0, 10),
       UpdateNeeded: updateNeeded,
+      UpdateType: updateType || "n/a", // Default to "n/a" if no update is needed
     });
   }
   return packageInfo;
@@ -61,10 +70,10 @@ async function generatePackageUpdatesCSV() {
   );
 
   const csvContent = [
-    "Package,Type,Installed Version,Installed Release Date,Latest Version,Latest Release Date,Update Needed",
+    "Package,Type,Installed Version,Installed Release Date,Latest Version,Latest Release Date,Update Needed,Update Type",
     ...allPackageInfo.map(
       (info) =>
-        `${info.Package},${info.Type},${info.InstalledVersion},${info.InstalledReleaseDate},${info.LatestVersion},${info.LatestReleaseDate},${info.UpdateNeeded}`,
+        `${info.Package},${info.Type},${info.InstalledVersion},${info.InstalledReleaseDate},${info.LatestVersion},${info.LatestReleaseDate},${info.UpdateNeeded},${info.UpdateType}`,
     ),
   ].join("\n");
 
