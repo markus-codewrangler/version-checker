@@ -1,6 +1,6 @@
 export const packages = {
   dependencies: {
-    history: "^4.10.1 || ^5.0.0",
+    history: "^5.0.0",
     "html-to-text": "^7.1.1",
     "lodash-es": "^4.17.21",
     speakingurl: "^14.0.1",
