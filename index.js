@@ -4,7 +4,6 @@ import path from "path";
 import semver from "semver";
 import { packages } from "./packages.js";
 
-// Function to fetch the latest version and release date of a package
 export async function fetchPackageInfo(packageName, installedVersion) {
   console.log("fetch", packageName, installedVersion);
   const response = await axios.get(
@@ -14,21 +13,16 @@ export async function fetchPackageInfo(packageName, installedVersion) {
   const latestVersion = response.data["dist-tags"].latest;
   const latestReleaseDate = response.data["time"][latestVersion];
   const installedVersionStripped = installedVersion.replace(/^\D+/, ""); // Remove the caret or tilde prefix
-  // Fetch the release date of the installed version directly
   const installedReleaseDate = response.data["time"][installedVersionStripped];
-
-  // Determine the type of update (major, minor, patch)
   const updateType = semver.diff(installedVersionStripped, latestVersion);
 
   return { latestVersion, latestReleaseDate, installedReleaseDate, updateType };
 }
 
-// Function to determine if an update is needed
-function needsUpdate(installedVersion, latestVersion) {
+function hasUpdate(installedVersion, latestVersion) {
   return installedVersion !== latestVersion;
 }
 
-// Function to process each dependency and devDependency
 async function processDependencies(deps, depType) {
   let packageInfo = [];
   for (const currentPackage in deps) {
@@ -39,10 +33,11 @@ async function processDependencies(deps, depType) {
       installedReleaseDate,
       updateType,
     } = await fetchPackageInfo(currentPackage, installedVersion);
-    const updateNeeded = needsUpdate(
+    const updateAvailable = hasUpdate(
       installedVersion.replace(/^\D+/, ""),
       latestVersion,
     );
+
     packageInfo.push({
       Package: currentPackage,
       Type: depType,
@@ -52,14 +47,15 @@ async function processDependencies(deps, depType) {
         .slice(0, 10),
       LatestVersion: latestVersion,
       LatestReleaseDate: new Date(latestReleaseDate).toISOString().slice(0, 10),
-      UpdateNeeded: updateNeeded,
-      UpdateType: updateType || "n/a", // Default to "n/a" if no update is needed
+      OlderThanOneYear:
+        new Date() - new Date(installedReleaseDate) > 365 * 24 * 60 * 60 * 1000,
+      UpdateAvailable: updateAvailable,
+      UpdateType: updateType || "n/a",
     });
   }
   return packageInfo;
 }
 
-// Function to generate and save the package information to a CSV file
 async function generatePackageUpdatesCSV() {
   let allPackageInfo = [];
   allPackageInfo = allPackageInfo.concat(
@@ -70,10 +66,10 @@ async function generatePackageUpdatesCSV() {
   );
 
   const csvContent = [
-    "Package,Type,Installed Version,Installed Release Date,Latest Version,Latest Release Date,Update Needed,Update Type",
+    "Package,Type,Installed Version,Installed Release Date,Latest Version,Latest Release Date,Installed Version Older Than 1 Year,Update Available,Update Type",
     ...allPackageInfo.map(
       (info) =>
-        `${info.Package},${info.Type},${info.InstalledVersion},${info.InstalledReleaseDate},${info.LatestVersion},${info.LatestReleaseDate},${info.UpdateNeeded},${info.UpdateType}`,
+        `${info.Package},${info.Type},${info.InstalledVersion},${info.InstalledReleaseDate},${info.LatestVersion},${info.LatestReleaseDate},${info.OlderThanOneYear},${info.UpdateAvailable},${info.UpdateType}`,
     ),
   ].join("\n");
 
@@ -81,5 +77,4 @@ async function generatePackageUpdatesCSV() {
   console.log("Table generated and saved to package_updates.csv");
 }
 
-// Call the function to generate the CSV
 generatePackageUpdatesCSV().catch(console.error);
